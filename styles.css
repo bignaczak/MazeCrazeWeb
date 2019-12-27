@@ -1,0 +1,15 @@
+
+
+/* for id
+ #mazeWidth {
+    width: 40px;
+}
+*/
+
+.mazeDims {
+    width: 40px;
+}
+
+.mazeBackground{
+    background-color: #464343;
+}
