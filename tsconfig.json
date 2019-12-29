@@ -1,0 +1,13 @@
+{
+    "compilerOptions": {
+      "target":"es6"
+      //, "module": "commonjs",   //(Invoking this breaks the enum values)
+      //"lib": ["es6", "dom"],
+    },
+    "include": [
+      "./src/MazeCraze_V1.ts"
+      //, "./src/lib/enums/TestEnum.ts"
+    ]
+
+    
+  }
