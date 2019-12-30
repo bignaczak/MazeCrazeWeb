@@ -1,30 +1,45 @@
 export {}
-//import {ThisIsATest} from "./lib/enums/TestEnum";
 
 // ************************************************************
 // ******   CUSTOM TYPES    ***********************************
 // ************************************************************
 type GridSize = [number, number];
 type MazePosition={xPos:number, yPos:number};
+type CanvasPosition={xCoord:number, yCoord:number}
 
 class Maze{
   size:[number, number];  // [rows, columns]
   solutionArray:Array<MazePosition>;
   deadEndArray: Array<MazePosition>;
+  overallWidth:number;
+  overallHeight:number;
+  
+  //Static parameters
+  public static squareSize:number = 25;
+  public static wallThickness:number = 2;
+  public static borderWidth:number = 10;
+  public static theMaze:Maze; 
 
-  constructor(rows:number, columns:number){
-    this.size = [rows, columns];
+
+  constructor(xSize:number, ySize:number){
+    this.size = [xSize, ySize];
     this.solutionArray = [];
     this.deadEndArray = [];
+    this.overallWidth = this.size[0]*(Maze.squareSize+Maze.wallThickness) + (2*Maze.borderWidth);
+    this.overallHeight = this.size[1]*(Maze.squareSize+Maze.wallThickness) + (2*Maze.borderWidth);
+    Maze.theMaze = this;
   }
 
+  public static getMaze():Maze{
+    return Maze.theMaze;
+  }
   public getSize():string {
     return 'Maze size is ' + this.size[0] +   ' rows x ' + this.size[1] + ' columns';
   }
-  public getRowUpperBound():number{
+  public getXUpperBound():number{
     return this.size[0];
   }
-  public getColumnUpperBound():number{
+  public getYUpperBound():number{
     return this.size[1];
   }
   public getSolutionArray():Array<MazePosition>{return this.solutionArray;}
@@ -34,6 +49,7 @@ class Maze{
     this.solutionArray.push({xPos:currentPosition.xPos, yPos:currentPosition.yPos});
   }
 
+  /*
   public isPositionInSolution(proposedPosition:MazePosition):boolean{
     let inSolution: boolean = false;
     //console.log(JSON.stringify(this.solutionArray));
@@ -50,7 +66,62 @@ class Maze{
     return inSolution;
 
   }
+  */
 
+  public isPositionInArray(proposedPosition:MazePosition, array:Array<MazePosition>):boolean{
+    let inArray: boolean = false;
+    //console.log(JSON.stringify(this.solutionArray));
+    for(let i=0; i<array.length; i++){
+      let existingPosition:MazePosition = array[i];
+      //console.log('For loop %d Checking proposed (%s, %s) against existing (%s, %s)',i, proposedPosition.xPos, proposedPosition.yPos, existingPosition.xPos, existingPosition.yPos);
+      //if(existingPosition.xPos == proposedPosition.xPos && existingPosition.yPos == proposedPosition.yPos){
+      if(JSON.stringify(existingPosition) == JSON.stringify(proposedPosition)){
+        inArray = true;
+        break;
+      }
+    }
+    //console.log('inSolution result %s', inSolution);
+    return inArray;
+
+  }
+
+  public addPositionToDeadEnds(currentPosition:MazePosition):void{
+    let deadEnd:MazePosition = {xPos: currentPosition.xPos, yPos: currentPosition.yPos};
+    
+    //See if the Position is contained in the solution array and erase it
+    let isAlreadyInSolution:boolean = this.isPositionInArray(deadEnd, this.solutionArray);
+    if (isAlreadyInSolution){
+      let startSolutionLength:number = this.solutionArray.length;
+      this.removePositionFromSolution(deadEnd);
+      console.log ('Position %s was removed from solution which went from %d nodes to %d', JSON.stringify(deadEnd),startSolutionLength, this.solutionArray.length)
+    }
+    
+    //Make sure the point isn't already in the deadend array
+    let isAlreadyInDeadEndArray:boolean =this.isPositionInArray(deadEnd, this.deadEndArray);
+    //If not, then add it
+    if (!isAlreadyInDeadEndArray){
+      this.deadEndArray.push(deadEnd);
+      console.log('Position %s added to deadEndArray, now size %d', JSON.stringify(deadEnd), this.deadEndArray.length);
+    } else{
+      console.log('Position %s already identified as DeadEnd', JSON.stringify(deadEnd));
+    }
+  }
+
+  public moveToPreviousPositionInSolution():MazePosition{
+    let previousIndex:number = this.solutionArray.length-1;
+    let referencePosition = this.solutionArray[previousIndex];
+    let returnPosition:MazePosition = {xPos:referencePosition.xPos, yPos:referencePosition.yPos};
+    return returnPosition;
+  }
+
+  public removePositionFromSolution(deadEnd:MazePosition):void{
+    for (let i=0; i<this.solutionArray.length; i++){
+      if(JSON.stringify(deadEnd) == JSON.stringify(this.solutionArray[i])){
+        this.solutionArray.splice(i,1);
+      }
+    }
+  }
+  
   public getViableMoves(currentPosition:MazePosition):Array<MoveDirection>{
     let viableMoves:Array<MoveDirection> = [];
 
@@ -69,24 +140,64 @@ class Maze{
       console.log('Cur Pos %s and direction %s to proposed pos %s', JSON.stringify(currentPosition), MoveDirection[i], JSON.stringify(proposedPosition));
       //Verify position is on the maze grid
       let isProposedSolutionOnGrid: Boolean = true;
-      if (proposedPosition.xPos >= this.getRowUpperBound() || proposedPosition.xPos < 0) isProposedSolutionOnGrid = false;
-      if (proposedPosition.yPos >= this.getColumnUpperBound() || proposedPosition.yPos < 0) isProposedSolutionOnGrid = false;
+      if (proposedPosition.xPos > this.getXUpperBound() || proposedPosition.xPos < 0) isProposedSolutionOnGrid = false;
+      if (proposedPosition.yPos >= this.getYUpperBound() || proposedPosition.yPos < 0) isProposedSolutionOnGrid = false;
 
-      //Verify that the solution doesn't already exist in the solution
-      //console.log('About to check if position is already in solution');
-      let isAlreadyInSolution:boolean = this.isPositionInSolution(proposedPosition);
+      //Verify that the proposed position doesn't already exist in the solution
+      let isAlreadyInSolution:boolean = this.isPositionInArray(proposedPosition, this.solutionArray);
       
-      if (isProposedSolutionOnGrid && !isAlreadyInSolution){
+      //Verify that the proposed position doesn't already exist in the deadEndArray
+      let isAlreadyInDeadEnds:boolean = this.isPositionInArray(proposedPosition, this.deadEndArray);
+
+      if (isProposedSolutionOnGrid && !isAlreadyInSolution && !isAlreadyInDeadEnds){
         //If on the grid and not already in the solution set
         viableMoves.push(proposedDirection);
       } else if (!isProposedSolutionOnGrid){
         console.log('From position %s, moving %s is off grid', JSON.stringify(currentPosition), proposedDirection);
       } else if (isAlreadyInSolution){
         console.log('From position %s, moving %s to proposed position of %s is already in solution', JSON.stringify(currentPosition), proposedDirection, JSON.stringify(proposedPosition));
+      } else if (isAlreadyInDeadEnds){
+        console.log('From position %s, moving %s to proposed position of %s is already in deadEndArray', JSON.stringify(currentPosition), proposedDirection, JSON.stringify(proposedPosition));
       }
     }
     console.log('From position (%d, %d) there are %d possible directions: %s', currentPosition.xPos, currentPosition.yPos, viableMoves.length, JSON.stringify(viableMoves));
     return viableMoves;
+  }
+
+  private getPositionCenterPoint(mazePosition:MazePosition, canvasPosition:CanvasPosition):void{
+    let x:number = (Maze.borderWidth + Maze.squareSize/2) + mazePosition.xPos * (Maze.squareSize + Maze.wallThickness);
+    let y:number = (Maze.borderWidth + Maze.squareSize/2) + mazePosition.yPos * (Maze.squareSize + Maze.wallThickness);
+    canvasPosition.xCoord = x;
+    canvasPosition.yCoord = y;
+  }
+  public async drawSolution(){
+    let mazeCanvas = document.getElementById("mazeCanvas") as HTMLCanvasElement;
+    let ctx = mazeCanvas.getContext('2d');
+    ctx.lineWidth=6;
+    ctx.strokeStyle = 'rgb(200,38,38)';
+    
+    console.log('Preparing to draw final solution: %s', JSON.stringify(this.solutionArray));
+    let path:Path2D;
+    let canvasPosition:CanvasPosition = {xCoord:0, yCoord:0};
+    if (this.solutionArray.length>0){
+    }
+    for (let i=0; i<this.solutionArray.length;i++){
+      let currentPosition = this.solutionArray[i];
+      
+      //The function getPositionCenterPoint sets the centerpoint coordinates for canvasPosition variable
+      this.getPositionCenterPoint(currentPosition,canvasPosition);
+      //***Note, the function above set the values for canvasPosition */
+
+      if (i==0){
+        path =new Path2D();
+        path.moveTo(0, canvasPosition.yCoord);
+      }
+      path.lineTo(canvasPosition.xCoord, canvasPosition.yCoord);
+      ctx.stroke(path);
+      path =new Path2D();
+      path.moveTo(canvasPosition.xCoord, canvasPosition.yCoord);
+      await sleep(50);;
+    }
   }
 }
 
@@ -121,6 +232,24 @@ enum MoveDirection{
 // ******   FUNCTIONS       ***********************************
 // ************************************************************
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function demo() {
+  console.log('Taking a break...');
+  await sleep(2000);
+  console.log('Two seconds later, showing sleep in a loop...');
+
+  // Sleep in loop
+  for (let i = 0; i < 5; i++) {
+    if (i === 3)
+      await sleep(2000);
+    console.log(i);
+  }
+}
+
+
 function draw() {
     let canvas = document.getElementById('canvas') as HTMLCanvasElement;
     if (canvas.getContext) {
@@ -152,14 +281,25 @@ function draw() {
   } 
 
 
-  function initMaze(x:number, y:number):void {
+  function initMaze(x?:number, y?:number):void {
+      if (x === undefined) {
+        let xInput:HTMLInputElement = document.getElementById("mazeWidth") as HTMLInputElement;
+        x=xInput.valueAsNumber;
+      }
+
+      if(y===undefined){
+        let yInput:HTMLInputElement = document.getElementById("mazeHeight") as HTMLInputElement;
+        y=yInput.valueAsNumber;
+      }
+
       clearMazeCanvas();
       let mazeCanvas = document.getElementById("mazeCanvas") as HTMLCanvasElement;
-      let squareSize:number = 25;
-      let wallThickness:number = 2;
-      let borderWidth:number = 10;
-      let newMazeWidth:number = x*(squareSize+wallThickness) + (2*borderWidth);
-      let newMazeHeight:number = y*(squareSize+wallThickness) + (2*borderWidth);
+      let squareSize:number = Maze.squareSize;
+      let wallThickness:number = Maze.wallThickness;
+      let borderWidth:number = Maze.borderWidth;
+      let myMaze = new Maze(x,y);
+      let newMazeWidth:number = myMaze.overallWidth;
+      let newMazeHeight:number = myMaze.overallHeight;
       mazeCanvas.width = newMazeWidth;
       mazeCanvas.height = newMazeHeight;
       drawMazeBorder(borderWidth);
@@ -253,6 +393,7 @@ function draw() {
 
  function generateSolution(gridSize?:GridSize){
     let xMax:number, yMax:number;
+    let maxIterations = 2*(xMax*yMax);
     
     if (gridSize !== undefined){
       xMax=gridSize[0];
@@ -266,10 +407,9 @@ function draw() {
     }
 
     //console.log("Maze Dimensions: (" + xMax + ", " + yMax + ")");
-    let myMaze:Maze = new Maze(xMax, yMax);
+    let myMaze:Maze = Maze.getMaze();
     console.log ('Maze created, size is ' + myMaze.getSize());
 
-    
     //Assign the start position 
     let yStart = Math.floor(Math.random() * yMax);
     console.log("Starting y position: " + yStart);
@@ -281,18 +421,32 @@ function draw() {
     let i = 0;
     while (!endReached){
       let viableMoves:Array<MoveDirection> = myMaze.getViableMoves(currentPosition);
+      if (viableMoves.length ==0){
+        console.log('No moves possible from %s, adding to deadEnds', JSON.stringify(currentPosition));
+        myMaze.addPositionToDeadEnds(currentPosition);
+        currentPosition = myMaze.moveToPreviousPositionInSolution();
+      } else {
 
-      let proposedMove = Math.floor(Math.random() * viableMoves.length);
-      let myMove = viableMoves[proposedMove];
-      console.log('Move %d used random number %d to select MoveDirection %d or %s', i,proposedMove, myMove, MoveDirection[myMove]);
-      //console.log('Move {$i} is ${myMove}');
-      isMoveValid(currentPosition, myMove, myMaze);
-      console.log('Back in loop, Current position: (%d , %d)', currentPosition.xPos, currentPosition.yPos);
+        let proposedMove = Math.floor(Math.random() * viableMoves.length);
+        let myMove = viableMoves[proposedMove];
+        console.log('Move %d used random number %d to select MoveDirection %d or %s', i,proposedMove, myMove, MoveDirection[myMove]);
+        //console.log('Move {$i} is ${myMove}');
+        isMoveValid(currentPosition, myMove, myMaze);
+        console.log('Back in loop, Current position: (%d , %d)', currentPosition.xPos, currentPosition.yPos);
+      }
 
+      //Check Exit conditions
       i++;
-      if(i>=5) endReached = true;
+      if (currentPosition.xPos == myMaze.getXUpperBound()){
+        endReached = true;
+        console.log ('Solution has been achieved, exit point %s', JSON.stringify(currentPosition));
+      } else if (i>=maxIterations) {
+        endReached = true;
+        console.log ('Timed out after %d iterations', i);
+      }
     }
- }
+    myMaze.drawSolution();
+  }
 
  function testEnumValues(){
   console.log ("About to print all the MoveDirection values");
@@ -315,11 +469,13 @@ function draw() {
   function logSlider(mySlider:HTMLInputElement){
     let slW:number=mySlider.valueAsNumber;
     (<HTMLInputElement> document.getElementById("mazeWidth")).valueAsNumber=slW;
+    initMaze();
   }
 
   function hSliderChange(slider:HTMLInputElement){
     let newHeight:number = slider.valueAsNumber;
     (<HTMLInputElement> document.getElementById("mazeHeight")).valueAsNumber=newHeight;
+    initMaze();
   }
 
   //Array<HTMLCanvasElement>(10);
@@ -360,12 +516,12 @@ function draw() {
     
     //Verify position is on the maze grid
     let isProposedSolutionOnGrid: Boolean = true;
-    if (proposedPosition.xPos >= maze.getRowUpperBound() || proposedPosition.xPos < 0) isProposedSolutionOnGrid = false;
-    if (proposedPosition.yPos >= maze.getColumnUpperBound() || proposedPosition.yPos < 0) isProposedSolutionOnGrid = false;
+    if (proposedPosition.xPos > maze.getXUpperBound() || proposedPosition.xPos < 0) isProposedSolutionOnGrid = false;
+    if (proposedPosition.yPos >= maze.getYUpperBound() || proposedPosition.yPos < 0) isProposedSolutionOnGrid = false;
 
     //Verify that the solution doesn't already exist in the solution
     console.log('About to check if position is already in solution');
-    let isAlreadyInSolution:boolean = maze.isPositionInSolution(proposedPosition);
+    let isAlreadyInSolution:boolean = maze.isPositionInArray(proposedPosition, maze.getSolutionArray());
     
 
     if (!isProposedSolutionOnGrid) {
@@ -392,3 +548,4 @@ function draw() {
     }
     return isValid;
   }
+

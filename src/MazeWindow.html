@@ -16,7 +16,7 @@
         <div class="slidecontainer">
           <input type="range" min="5" max="30" value="10" class="slider" id="myRange" oninput="logSlider(this)">
           Width: <input class="mazeDims" id="mazeWidth" type="number" name="mazeWidth" value = "10">
-          <input type="range" min="5" max="30" value="10" class="slider" id="heightSlider" onchange="hSliderChange(this)">
+          <input type="range" min="5" max="30" value="10" class="slider" id="heightSlider" oninput="hSliderChange(this)">
           Height: <input class="mazeDims" id="mazeHeight" type="number" name="mazeHeight" value="10">
         
         </div>
@@ -25,17 +25,23 @@
       <script>
         var sliderValue = document.getElementById('myRange').value;
         </script>
-
-      <p><button type="button" onclick="initMaze(
+      <!-- 
+      <p><button type="button"  onclick="initMaze(
         document.getElementById('mazeWidth').value
         , document.getElementById('mazeHeight').value)"
+        
         >Draw Maze</button></p>
       <p>
+      -->
 
           <canvas id="mazeCanvas" class="mazeBackground" width="800" height="600" onmousemove="trackMouse(event)" onclick="generateSolution()";>
           </canvas>
 
       </p>
-  </body onload="formatMazeCanvas(this)";>
+  </body onload="initMaze()";>
+
+  <script type="text/javascript">
+    window.onload = initMaze();
+  </script>
 
   </html>
