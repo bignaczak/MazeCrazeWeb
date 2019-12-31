@@ -12,8 +12,8 @@ class Maze {
         this.size = [xSize, ySize];
         this.solutionArray = [];
         this.deadEndArray = [];
-        this.overallWidth = this.size[0] * (Maze.squareSize + Maze.wallThickness) + (2 * Maze.borderWidth);
-        this.overallHeight = this.size[1] * (Maze.squareSize + Maze.wallThickness) + (2 * Maze.borderWidth);
+        this.overallWidth = this.size[0] * (Maze.cellInterval) + (2 * Maze.borderWidth) - Maze.wallThickness;
+        this.overallHeight = this.size[1] * (Maze.cellInterval) + (2 * Maze.borderWidth) - Maze.wallThickness;
         Maze.theMaze = this;
     }
     static getMaze() {
@@ -98,6 +98,49 @@ class Maze {
                 this.solutionArray.splice(i, 1);
             }
         }
+    }
+    calculateSolution() {
+        console.log('Maze created, size is ' + this.getSize());
+        let xMax, yMax;
+        let maxIterations = 2 * (xMax * yMax);
+        xMax = this.getXUpperBound();
+        yMax = this.getYUpperBound();
+        //Assign the start position 
+        let yStart = Math.floor(Math.random() * yMax);
+        console.log("Starting y position: " + yStart);
+        let currentPosition = { xPos: 0, yPos: yStart };
+        this.addPositionToSolution(currentPosition);
+        //Prepare the loop for generating the solution
+        let endReached = false;
+        let i = 0;
+        while (!endReached) {
+            let viableMoves = this.getViableMoves(currentPosition);
+            if (viableMoves.length == 0) {
+                console.log('No moves possible from %s, adding to deadEnds', JSON.stringify(currentPosition));
+                this.addPositionToDeadEnds(currentPosition);
+                currentPosition = this.moveToPreviousPositionInSolution();
+            }
+            else {
+                let proposedMove = Math.floor(Math.random() * viableMoves.length);
+                let myMove = viableMoves[proposedMove];
+                console.log('Move %d used random number %d to select MoveDirection %d or %s', i, proposedMove, myMove, MoveDirection[myMove]);
+                //console.log('Move {$i} is ${myMove}');
+                isMoveValid(currentPosition, myMove, this);
+                console.log('Back in loop, Current position: (%d , %d)', currentPosition.xPos, currentPosition.yPos);
+            }
+            //Check Exit conditions
+            i++;
+            if (currentPosition.xPos == this.getXUpperBound()) {
+                endReached = true;
+                console.log('Solution has been achieved, exit point %s', JSON.stringify(currentPosition));
+            }
+            else if (i >= maxIterations) {
+                endReached = true;
+                console.log('Timed out after %d iterations', i);
+            }
+        }
+        this.removeWallsForPath();
+        this.drawSolution();
     }
     getViableMoves(currentPosition) {
         let viableMoves = [];
@@ -187,11 +230,78 @@ class Maze {
             }
         });
     }
+    removeWallsForPath() {
+        //Loop through the cells in the solution set and cover up the green walls with background color
+        //Setup the maze canvas and set the background color
+        let mazeCanvas = document.getElementById("mazeCanvas");
+        let ctx = mazeCanvas.getContext('2d');
+        let backgroundStyle = getComputedStyle(mazeCanvas);
+        ctx.strokeStyle = backgroundStyle.getPropertyValue('background-color');
+        ctx.fillStyle = backgroundStyle.getPropertyValue('background-color');
+        //The final entry in the solution array is outside of the maze so ignore it
+        let lastEntryIndex = (this.solutionArray.length - 1);
+        console.log('Final entry in sollution array is X: %d', this.solutionArray[this.solutionArray.length - 1].xPos);
+        for (let i = 0; i < lastEntryIndex; i++) {
+            //for(let i=0; i<5; i++){
+            let currentPosition = this.solutionArray[i];
+            let top, left, width, height;
+            if (i == 0 || i == lastEntryIndex) {
+                //First, remove the left wall for the start position
+                top = Maze.borderWidth + (currentPosition.yPos * Maze.cellInterval);
+                if (i == 0) {
+                    left = 0;
+                }
+                else {
+                    left = Maze.borderWidth + currentPosition.yPos * Maze.cellInterval + Maze.squareSize;
+                }
+                width = Maze.borderWidth;
+                height = Maze.squareSize;
+                ctx.fillRect(left, top, width, height);
+            }
+            //Don't process for the last cell in the solution array
+            if (i < lastEntryIndex) {
+                let nextPosition = this.solutionArray[i + 1];
+                let dir;
+                if (nextPosition.xPos > currentPosition.xPos) {
+                    dir = MoveDirection.RIGHT;
+                    top = Maze.borderWidth + (currentPosition.yPos * Maze.cellInterval);
+                    left = (Maze.borderWidth + Maze.squareSize) + (currentPosition.xPos * Maze.cellInterval);
+                    width = Maze.borderWidth;
+                    height = Maze.squareSize;
+                }
+                else if (nextPosition.xPos < currentPosition.xPos) {
+                    dir = MoveDirection.LEFT;
+                    top = Maze.borderWidth + (currentPosition.yPos * Maze.cellInterval);
+                    left = (Maze.borderWidth + Maze.squareSize) + ((nextPosition.xPos) * Maze.cellInterval);
+                    width = Maze.borderWidth;
+                    height = Maze.squareSize;
+                }
+                else if (nextPosition.yPos > currentPosition.yPos) {
+                    dir = MoveDirection.DOWN;
+                    top = Maze.borderWidth + Maze.squareSize + (currentPosition.yPos * Maze.cellInterval);
+                    left = (Maze.borderWidth) + (currentPosition.xPos * Maze.cellInterval);
+                    width = Maze.squareSize;
+                    height = Maze.wallThickness;
+                }
+                else {
+                    dir = MoveDirection.UP;
+                    top = Maze.borderWidth + Maze.squareSize + ((nextPosition.yPos) * Maze.cellInterval);
+                    left = (Maze.borderWidth) + (currentPosition.xPos * Maze.cellInterval);
+                    width = Maze.squareSize;
+                    height = Maze.wallThickness;
+                }
+                console.log('Move was %d or %s', dir, MoveDirection[dir]);
+                console.log('Current Position (%d, %d) --> (%d, %d)', currentPosition.xPos, currentPosition.yPos, nextPosition.xPos, nextPosition.yPos);
+                ctx.fillRect(left, top, width, height);
+            }
+        }
+    }
 }
 //Static parameters
 Maze.squareSize = 25;
 Maze.wallThickness = 2;
 Maze.borderWidth = 10;
+Maze.cellInterval = Maze.squareSize + Maze.wallThickness;
 class TestClass {
     constructor(i, d) {
         this.i = i;
@@ -269,7 +379,7 @@ function initMaze(x, y) {
     let newMazeHeight = myMaze.overallHeight;
     mazeCanvas.width = newMazeWidth;
     mazeCanvas.height = newMazeHeight;
-    drawMazeBorder(borderWidth);
+    drawMazeBorder();
     let currentDirection = "horizontal" /* "HORIZONTAL" */;
     drawMazeGridLines(currentDirection, y - 1, squareSize, wallThickness, borderWidth, mazeCanvas);
     currentDirection = "vertical" /* "VERTICAL" */;
@@ -280,22 +390,25 @@ function clearMazeCanvas() {
     let context2 = mazeCanvas.getContext('2d');
     context2.clearRect(0, 0, mazeCanvas.width, mazeCanvas.height);
 }
-function drawMazeBorder(borderWidth) {
+function drawMazeBorder() {
     let c = document.getElementById("mazeCanvas");
     let ctx = c.getContext("2d");
     ctx.strokeStyle = 'rgb(50,255,50)';
+    let borderWidth = Maze.borderWidth;
     ctx.lineWidth = borderWidth;
     console.log(c);
     //ctx.strokeStyle = "#FF0000";
     let mazeBorder = ctx.strokeRect(borderWidth / 2, borderWidth / 2, c.width - borderWidth, c.height - borderWidth);
-    let startPos = [ctx.lineWidth, ctx.lineWidth];
-    let endPos = [c.width - ctx.lineWidth, c.height - ctx.lineWidth];
+    /*  This is the diagnol line that was used as an early test
+    let startPos:number[] = [ctx.lineWidth, ctx.lineWidth];
+    let endPos:number[] = [c.width-ctx.lineWidth, c.height-ctx.lineWidth];
     ctx.lineWidth = 1;
     ctx.strokeStyle = 'rgb(0,0,0)';
     ctx.beginPath();
     ctx.moveTo(startPos[0], startPos[1]);
     ctx.lineTo(endPos[0], endPos[1]);
     ctx.stroke();
+    */
 }
 function drawMazeGridLines(direction, numLines, squareSize, wallThickness, borderWidth, mazeCanvas) {
     /**
@@ -345,57 +458,8 @@ function drawMazeGridLines(direction, numLines, squareSize, wallThickness, borde
     console.log(logTag + ": Outside for loop");
 }
 function generateSolution(gridSize) {
-    let xMax, yMax;
-    let maxIterations = 2 * (xMax * yMax);
-    if (gridSize !== undefined) {
-        xMax = gridSize[0];
-        yMax = gridSize[1];
-    }
-    else {
-        let xElement = document.getElementById("mazeWidth");
-        xMax = xElement.valueAsNumber;
-        let yElement = document.getElementById("mazeHeight");
-        yMax = yElement.valueAsNumber;
-        gridSize = [xMax, yMax];
-    }
-    //console.log("Maze Dimensions: (" + xMax + ", " + yMax + ")");
     let myMaze = Maze.getMaze();
-    console.log('Maze created, size is ' + myMaze.getSize());
-    //Assign the start position 
-    let yStart = Math.floor(Math.random() * yMax);
-    console.log("Starting y position: " + yStart);
-    let currentPosition = { xPos: 0, yPos: yStart };
-    myMaze.addPositionToSolution(currentPosition);
-    //Prepare the loop for generating the solution
-    let endReached = false;
-    let i = 0;
-    while (!endReached) {
-        let viableMoves = myMaze.getViableMoves(currentPosition);
-        if (viableMoves.length == 0) {
-            console.log('No moves possible from %s, adding to deadEnds', JSON.stringify(currentPosition));
-            myMaze.addPositionToDeadEnds(currentPosition);
-            currentPosition = myMaze.moveToPreviousPositionInSolution();
-        }
-        else {
-            let proposedMove = Math.floor(Math.random() * viableMoves.length);
-            let myMove = viableMoves[proposedMove];
-            console.log('Move %d used random number %d to select MoveDirection %d or %s', i, proposedMove, myMove, MoveDirection[myMove]);
-            //console.log('Move {$i} is ${myMove}');
-            isMoveValid(currentPosition, myMove, myMaze);
-            console.log('Back in loop, Current position: (%d , %d)', currentPosition.xPos, currentPosition.yPos);
-        }
-        //Check Exit conditions
-        i++;
-        if (currentPosition.xPos == myMaze.getXUpperBound()) {
-            endReached = true;
-            console.log('Solution has been achieved, exit point %s', JSON.stringify(currentPosition));
-        }
-        else if (i >= maxIterations) {
-            endReached = true;
-            console.log('Timed out after %d iterations', i);
-        }
-    }
-    myMaze.drawSolution();
+    myMaze.calculateSolution();
 }
 function testEnumValues() {
     console.log("About to print all the MoveDirection values");
