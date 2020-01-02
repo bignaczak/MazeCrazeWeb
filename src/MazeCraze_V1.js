@@ -33,6 +33,14 @@ class Maze {
         //Must create a copy of the object
         this.solutionArray.push({ xPos: currentPosition.xPos, yPos: currentPosition.yPos });
     }
+    setGamePiece(inputGamePiece) {
+        this.gamePiece = inputGamePiece;
+    }
+    getGamePiece() { return this.gamePiece; }
+    setGamePiecePosition(canvasPosition) {
+        this.gamePiecePosition = canvasPosition;
+    }
+    getGamePiecePosition() { return this.gamePiecePosition; }
     isPositionInArray(proposedPosition, array) {
         let inArray = false;
         //console.log(JSON.stringify(this.solutionArray));
@@ -533,7 +541,8 @@ function logMousePosition(e) {
     console.log(e);
 }
 function trackMouse(e) {
-    console.log("(" + e.x + ", " + e.y + ")");
+    console.log("(" + e.offsetX + ", " + e.offsetY + ")");
+    moveGamePiece(e.offsetX, e.offsetY);
 }
 function drawRectangle(e) {
     clearMazeCanvas();
@@ -646,6 +655,7 @@ function generateSolution(gridSize) {
     initMaze();
     let myMaze = Maze.getMaze();
     myMaze.calculateSolution();
+    drawCircle(myMaze.getSolutionArray()[0]);
 }
 function revealSolution() {
     let myMaze = Maze.getMaze();
@@ -663,6 +673,44 @@ function testObjectDraw(c) {
     myPath.moveTo(10, 10);
     myPath.lineTo(100, 140);
     ctx.stroke(myPath);
+}
+function drawCircle(startGridPosition) {
+    let myMaze = Maze.getMaze();
+    let ctx = myMaze.getCanvasContext();
+    let circle = new Path2D();
+    let drawPosition = { xCoord: 0, yCoord: 0 };
+    let circleRadius = 5;
+    drawPosition.xCoord = circleRadius;
+    drawPosition.yCoord = Maze.borderWidth + Maze.squareSize / 2 + (startGridPosition.yPos * Maze.cellInterval);
+    myMaze.setGamePiecePosition(drawPosition);
+    circle.arc(drawPosition.xCoord, drawPosition.yCoord, circleRadius, 0, 2 * Math.PI);
+    ctx.fillStyle = 'rgb(64,224,208';
+    ctx.fill(circle);
+    myMaze.setGamePiece(circle);
+}
+function moveGamePiece(x, y) {
+    let newX;
+    let myMaze = Maze.getMaze();
+    //Note:  this sets the fill style to the background color
+    let ctx = myMaze.getCanvasContext();
+    let gamePiece = myMaze.getGamePiece();
+    let gamePiecePosition = myMaze.getGamePiecePosition();
+    if (x === undefined || y === undefined) {
+        x = gamePiecePosition.xCoord += Maze.cellInterval;
+        y = gamePiecePosition.yCoord;
+    }
+    let newPosition = new Path2D();
+    let circleRadius = 5;
+    //cover up old one
+    let oldPosition = new Path2D();
+    oldPosition.arc(gamePiecePosition.xCoord, gamePiecePosition.yCoord, circleRadius, 0, 2 * Math.PI);
+    ctx.fill(oldPosition);
+    ctx.stroke(oldPosition);
+    gamePiecePosition.xCoord = x;
+    gamePiecePosition.yCoord = y;
+    newPosition.arc(gamePiecePosition.xCoord, gamePiecePosition.yCoord, circleRadius, 0, 2 * Math.PI);
+    ctx.fillStyle = 'rgb(64,224,208)';
+    ctx.fill(newPosition);
 }
 function logSlider(mySlider) {
     let slW = mySlider.valueAsNumber;

@@ -21,6 +21,8 @@ class Maze{
   public static borderWidth:number = 10;
   public static cellInterval:number = Maze.squareSize + Maze.wallThickness;
   public static theMaze:Maze; 
+  public gamePiece:Path2D;
+  public gamePiecePosition:CanvasPosition;
 
 
   constructor(xSize:number, ySize:number){
@@ -50,6 +52,18 @@ class Maze{
     //Must create a copy of the object
     this.solutionArray.push({xPos:currentPosition.xPos, yPos:currentPosition.yPos});
   }
+
+  public setGamePiece(inputGamePiece:Path2D){
+    this.gamePiece = inputGamePiece;
+  }
+
+  public getGamePiece(){ return this.gamePiece;}
+
+  public setGamePiecePosition(canvasPosition:CanvasPosition){
+    this.gamePiecePosition = canvasPosition;
+  }
+
+  public getGamePiecePosition(){return this.gamePiecePosition;}
 
   public isPositionInArray(proposedPosition:MazePosition, array:Array<MazePosition>):boolean{
     let inArray: boolean = false;
@@ -415,7 +429,7 @@ class Maze{
     }
   }
 
-  private getCanvasContext(elementID?:string):CanvasRenderingContext2D{
+  public getCanvasContext(elementID?:string):CanvasRenderingContext2D{
     //Setup the maze canvas and set the background color
     if(elementID===undefined) elementID="mazeCanvas";
     let mazeCanvas = document.getElementById(elementID) as HTMLCanvasElement;
@@ -553,8 +567,9 @@ function draw() {
       console.log(e);
   }
 
-  function trackMouse(e){
-        console.log("(" + e.x + ", " + e.y + ")");
+  function trackMouse(e:MouseEvent){
+    console.log("(" + e.offsetX + ", " + e.offsetY + ")");
+    moveGamePiece(e.offsetX, e.offsetY);
   }
 
   function drawRectangle(e){
@@ -683,11 +698,13 @@ function draw() {
   initMaze();
   let myMaze:Maze = Maze.getMaze();
   myMaze.calculateSolution();  
+  drawCircle(myMaze.getSolutionArray()[0]);
   }
 
  function revealSolution():void{
   let myMaze:Maze = Maze.getMaze(); 
   myMaze.drawSolution();
+
  }
 
  function testEnumValues(){
@@ -703,9 +720,51 @@ function draw() {
   myPath.moveTo(10,10);
   myPath.lineTo(100,140);
   ctx.stroke(myPath);
+ }
 
+ function drawCircle(startGridPosition:MazePosition){
+
+  let myMaze = Maze.getMaze();
+  let ctx = myMaze.getCanvasContext();
+  let circle = new Path2D();
+  let drawPosition:CanvasPosition={xCoord:0, yCoord:0};
+  let circleRadius = 5
+  drawPosition.xCoord = circleRadius;
+  drawPosition.yCoord = Maze.borderWidth + Maze.squareSize/2 + (startGridPosition.yPos * Maze.cellInterval);
+  myMaze.setGamePiecePosition(drawPosition);
+  circle.arc(drawPosition.xCoord,drawPosition.yCoord,circleRadius,0,2*Math.PI);
+  ctx.fillStyle = 'rgb(64,224,208';
+  ctx.fill(circle);
+  myMaze.setGamePiece(circle);
+
+ }
+
+ function moveGamePiece(x?:number, y?:number):void{
+  let newX:number;
   
+  let myMaze = Maze.getMaze();
+  //Note:  this sets the fill style to the background color
+  let ctx = myMaze.getCanvasContext();
+  let gamePiece = myMaze.getGamePiece();
+  let gamePiecePosition:CanvasPosition = myMaze.getGamePiecePosition();
+  if(x===undefined || y===undefined){
+    x = gamePiecePosition.xCoord += Maze.cellInterval;
+    y = gamePiecePosition.yCoord;
+  }
+  let newPosition = new Path2D();
+  let circleRadius = 5;
+  //cover up old one
+  let oldPosition = new Path2D();
+  oldPosition.arc(gamePiecePosition.xCoord, gamePiecePosition.yCoord, circleRadius, 0, 2*Math.PI);
+  ctx.fill(oldPosition);
+  ctx.stroke(oldPosition);
 
+  gamePiecePosition.xCoord =x;
+  gamePiecePosition.yCoord =y;
+  newPosition.arc(gamePiecePosition.xCoord,gamePiecePosition.yCoord, circleRadius, 0, 2*Math.PI);
+
+  ctx.fillStyle = 'rgb(64,224,208)';
+  ctx.fill(newPosition);
  }
 
   function logSlider(mySlider:HTMLInputElement){
