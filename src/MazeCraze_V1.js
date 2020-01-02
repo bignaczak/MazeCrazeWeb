@@ -186,10 +186,10 @@ class Maze {
         }
         this.removeWallsForPath();
         this.calculateDeadEnds();
-        this.drawSolution();
+        //this.drawSolution();
     }
     calculateDeadEnds() {
-        let debugOn = false;
+        let debugOn = true;
         if (debugOn)
             console.log('Entering calculateDeadEnds');
         //clear the original dead end array
@@ -223,9 +223,16 @@ class Maze {
     //TODO:  This logic needs to be cleaned
     //Each path must have individual backtracking capability
     createDeadEndPath(currentPosition) {
+        let debugOn = true;
         let exitLoop = false;
-        let i = 0;
+        let i = 0, loopCount = 0;
         let ctx = this.getCanvasContext();
+        //Create an array to store this path
+        let currentPath = [];
+        //Add the first position to the array (note, this is in the solution);
+        currentPath.push(currentPosition);
+        if (debugOn)
+            console.log("Starting deadendPath from (%d, %d)", currentPosition.xPos, currentPosition.yPos);
         //while(!exitLoop && i<200 ){
         while (!exitLoop) {
             let viableMoves = this.getViableMoves(currentPosition, false);
@@ -239,31 +246,36 @@ class Maze {
                 this.removeWall(currentPosition, nextPosition, ctx);
                 this.makeMove(currentPosition, nextMove);
                 this.addPositionToDeadEnds(currentPosition, false);
+                currentPath.push({ xPos: currentPosition.xPos, yPos: currentPosition.yPos });
+                i++;
+                if (debugOn)
+                    console.log("Positions on path index now %d", currentPath.length);
             }
             else {
                 //No moves to be made, so backup until a move can be made
-                console.log('No move available from position (%d, %d)', currentPosition.xPos, currentPosition.yPos);
-                let backAtStart = this.isPositionInArray(currentPosition, this.solutionArray);
-                if (backAtStart) {
+                if (debugOn)
+                    console.log('No move available from position (%d, %d)', currentPosition.xPos, currentPosition.yPos);
+                //If not currently backtracking, end of a trail has been reached, so record path in myPaths
+                if (currentPath.length == 1) {
                     exitLoop = true;
-                    console.log('Back on solution, preparing to exit...');
+                    if (debugOn)
+                        console.log('Back on solution, preparing to exit...');
                 }
                 else {
                     //move back a spot
-                    let currentIndex = this.indexOfPositionInArray(currentPosition, this.deadEndArray);
-                    if (currentIndex <= 0) {
-                        exitLoop = true;
-                    }
-                    else {
-                        currentPosition = this.moveToPreviousPositionInArray(currentIndex, this.deadEndArray);
+                    currentPath.pop();
+                    currentPosition = currentPath[currentPath.length - 1];
+                    if (debugOn)
+                        console.log('Path length decremented to %d', currentPath.length);
+                    if (debugOn)
                         console.log('moved back to (%d, %d)', currentPosition.xPos, currentPosition.yPos);
-                    }
                 }
             }
             //Now recalculate viable moves for the currentPosition
-            i++;
+            loopCount++;
         }
-        console.log('Exited deadEnd loop after %d iterations', i);
+        if (debugOn)
+            console.log('Exited deadEnd loop after %d iterations', loopCount);
     }
     getViableMoves(currentPosition, allowExit) {
         let debugOn = false;
@@ -631,8 +643,13 @@ function drawMazeGridLines(direction, numLines, squareSize, wallThickness, borde
         console.log(logTag + ": Outside for loop");
 }
 function generateSolution(gridSize) {
+    initMaze();
     let myMaze = Maze.getMaze();
     myMaze.calculateSolution();
+}
+function revealSolution() {
+    let myMaze = Maze.getMaze();
+    myMaze.drawSolution();
 }
 function testEnumValues() {
     console.log("About to print all the MoveDirection values");

@@ -18,7 +18,7 @@
           Width: <input class="mazeDims" id="mazeWidth" type="number" name="mazeWidth" value = "10">
           <input type="range" min="5" max="30" value="10" class="slider" id="heightSlider" oninput="hSliderChange(this)">
           Height: <input class="mazeDims" id="mazeHeight" type="number" name="mazeHeight" value="10">
-        
+          <button type="button" onclick="revealSolution()">Show Solution </button>
         </div>
   
      
@@ -34,7 +34,8 @@
       <p>
       -->
 
-          <canvas id="mazeCanvas" class="mazeBackground" width="800" height="600" onmousemove="trackMouse(event)" onclick="generateSolution()";>
+          <canvas id="mazeCanvas" class="mazeBackground" width="800" height="600" 
+          onmousemove="trackMouse(event)" onclick="generateSolution()";>
           </canvas>
 
       </p>
