@@ -5,6 +5,9 @@
     width: 40px;
 }
 */
+#maze-div-no-cursor{
+    cursor: pointer;
+}
 
 .mazeDims {
     width: 40px;

@@ -12,31 +12,51 @@ class Maze{
   size:[number, number];  // [rows, columns]
   solutionArray:Array<MazePosition>;
   deadEndArray: Array<MazePosition>;
-  overallWidth:number;
-  overallHeight:number;
+  private _overallWidth: number;
+  private _overallHeight: number;
+  private _collisionDetector:CollisionDetector;
   
   //Static parameters
   public static squareSize:number = 25;
   public static wallThickness:number = 2;
-  public static borderWidth:number = 10;
+  private static _borderWidth: number = 10;
   public static cellInterval:number = Maze.squareSize + Maze.wallThickness;
   public static theMaze:Maze; 
   public gamePiece:Path2D;
   public gamePiecePosition:CanvasPosition;
-
-
+  
+  
   constructor(xSize:number, ySize:number){
     this.size = [xSize, ySize];
     this.solutionArray = [];
     this.deadEndArray = [];
-    this.overallWidth = this.size[0]*(Maze.cellInterval) + (2*Maze.borderWidth) - Maze.wallThickness;
-    this.overallHeight = this.size[1]*(Maze.cellInterval) + (2*Maze.borderWidth) - Maze.wallThickness;
+    this._overallWidth = this.size[0]*(Maze.cellInterval) + (2*Maze.borderWidth) - Maze.wallThickness;
+    this._overallHeight = this.size[1]*(Maze.cellInterval) + (2*Maze.borderWidth) - Maze.wallThickness;
+    this._collisionDetector = new CollisionDetector(this);
     Maze.theMaze = this;
   }
-
+  
+  //****************************************************************
+  //****************************************************************
+  // *****    GETTERS AND SETTERS   *******************************
   public static getMaze():Maze{
     return Maze.theMaze;
+
   }
+  public get overallWidth(): number { return this._overallWidth;}
+
+  public get overallHeight(): number {return this._overallHeight;}
+
+  public set overallWidth(value: number) {this._overallWidth = value;}
+
+  public set overallHeight(value: number) {this._overallHeight = value;}
+
+  public static get borderWidth(): number {return Maze._borderWidth;}
+
+  public static  set borderWidth(value: number) {Maze._borderWidth = value;}
+
+  public get collisionDetector() {return this._collisionDetector;}
+
   public getSize():string {
     return 'Maze size is ' + this.size[0] +   ' rows x ' + this.size[1] + ' columns';
   }
@@ -510,6 +530,104 @@ class TestClass {
   }
 
 }
+
+class MazeDisplay{
+
+}
+
+class CollisionDetector{
+
+  private barriers:Array<Array<Number>>;
+
+  constructor (maze:Maze){
+    //Initialize the Barriers for collision detection with all zeros
+    this.barriers = new Array(maze.overallWidth);
+    for (let i=0; i<this.barriers.length; i++){
+      this.barriers[i] = new Array(maze.overallHeight).fill(0);
+    }
+
+    this.setBorderBarrier(maze);
+  }
+
+  private setBorderBarrier(maze:Maze){
+    let debugOn = true;
+    let logTag = 'setBorderBarrier';
+    let startCanvasPosition:CanvasPosition = {xCoord:0, yCoord:0};
+    let thickness = Maze.borderWidth;
+    let height = maze.overallHeight;
+    let width = maze.overallWidth;
+    let startX:number, startY:number;
+    
+    //First draw the vertical walls
+    let leftBorder:RectangleCoord = {canvasPosition: startCanvasPosition, width: thickness, height:height};
+    let rightBorder:RectangleCoord = {canvasPosition:{xCoord:width-thickness, yCoord:0}, width:thickness, height:height};
+    let topBorder:RectangleCoord={canvasPosition:{xCoord:0, yCoord:0}, width:width, height:thickness};
+    let bottomBorder:RectangleCoord={canvasPosition:{xCoord:0, yCoord:height-thickness}, width:width, height:thickness};
+    
+    let borders:Array<RectangleCoord> = [leftBorder, rightBorder, topBorder, bottomBorder];
+    //let borders:Array<RectangleCoord> = [leftBorder, rightBorder];
+
+    borders.forEach((borderCoordinates)=>{
+      this.setRectangularBarrierZone(borderCoordinates, SpaceFlag.WALL);
+    })
+
+    //if (debugOn) console.log(`${logTag}: After adding borders: ${JSON.stringify(this.barriers)}`);
+    if (debugOn) {
+      for (let x=0;x<10;x++)
+      console.log(`${logTag}: After adding borders row ${x}: ${JSON.stringify(this.barriers[x])}`);
+    }
+  }
+
+  private setRectangularBarrierZone(rectangle:RectangleCoord, spaceFlag?:SpaceFlag){
+    if(spaceFlag===undefined) spaceFlag = SpaceFlag.WALL;
+    let xPos = rectangle.canvasPosition.xCoord
+    let xEnd = xPos + rectangle.width;
+    for (xPos; xPos<xEnd; xPos++){
+      let yStart = rectangle.canvasPosition.yCoord;
+      let yEnd = yStart + rectangle.height;
+      this.barriers[xPos].fill(spaceFlag, yStart, yEnd);
+    }
+  }
+
+  public collisionDetected(center:CanvasPosition, radius?:number):boolean{
+    let debugOn = true;
+    if (debugOn) console.log(`Barriers are ${JSON.stringify(this.barriers)}`);
+    if(radius === undefined) radius=5;
+    
+    //Create rectangle where gamepiece resides
+    //Poll the barriers to see if they exist
+    //Report the position closest to the centerpoint
+    
+    let hitBox:RectangleCoord = {canvasPosition:{xCoord: (center.xCoord-radius), yCoord: (center.yCoord- radius)}, width:radius*2, height:radius*2};
+    if (hitBox.canvasPosition.xCoord < 0) hitBox.canvasPosition.xCoord = 0;
+    if (hitBox.canvasPosition.yCoord < 0) hitBox.canvasPosition.yCoord = 0;
+    if (debugOn) console.log(`Cursor Position (${center.xCoord}, ${center.yCoord})`);
+    if (debugOn) console.log(`Hit Box (${hitBox.canvasPosition.xCoord}, ${hitBox.canvasPosition.yCoord})`);
+    if (debugOn) console.log(JSON.stringify(hitBox));
+    let hitSum = 0;
+    let xPos = hitBox.canvasPosition.xCoord
+    let xEnd = xPos + hitBox.width;
+    if (xEnd >= this.barriers.length-1) xEnd = this.barriers.length-1;
+    for(xPos; xPos<=xEnd; xPos++){
+      let thisArray = this.barriers[xPos];
+      if (debugOn) console.log(`first array of barriers: ${JSON.stringify(thisArray)}`);
+      let y = hitBox.canvasPosition.yCoord;
+      let yEnd = y+hitBox.height + 1;
+      if (yEnd>=thisArray.length-1) yEnd = thisArray.length-1;
+      if (debugOn) console.log(`xPos: ${xPos} and (y, yMax): (${y}, ${yEnd}) and length of barriers: ${this.barriers.length}`);
+      let hitArray = thisArray.slice(y,(yEnd));
+      if (debugOn) console.log(`hit array: ${JSON.stringify(this.barriers[xPos])}`);
+      if (debugOn) console.log(`Length of thisArray: ${thisArray.length}, hitArray: ${JSON.stringify(hitArray)}`);
+      if(debugOn) console.log(`Result for hitArray for xPos: ${xPos} is ${hitArray.indexOf(1)} ${JSON.stringify(hitArray)}`);
+      if(hitArray.indexOf(1) !== -1){
+        hitSum++;
+      }
+    }
+    if(debugOn) console.log(`hitSum = ${hitSum}`);
+    return (hitSum>0) ? true : false;
+    
+  }
+}
 // ************************************************************
 // ******   ENUMERATIONS    ***********************************
 // ************************************************************
@@ -523,6 +641,11 @@ enum MoveDirection{
   , RIGHT
   , DOWN
   , LEFT
+}
+
+enum SpaceFlag{
+  FREE=0,
+  WALL=1
 }
 
 
@@ -549,27 +672,31 @@ async function demo() {
 
 
 function draw() {
-    let canvas = document.getElementById('canvas') as HTMLCanvasElement;
-    if (canvas.getContext) {
-      var context = canvas.getContext('2d');
-  
-      context.fillRect(20,20,100,100);
-      context.clearRect(40,40,60,60);
-      context.strokeRect(45,45,50,50);
-    }
-  }
+  let canvas = document.getElementById('canvas') as HTMLCanvasElement;
+  if (canvas.getContext) {
+    var context = canvas.getContext('2d');
 
-  function clickCanvas(){
-      console.log("Canvas Clicked");
+    context.fillRect(20,20,100,100);
+    context.clearRect(40,40,60,60);
+    context.strokeRect(45,45,50,50);
   }
+}
 
-  function logMousePosition(e){
-      console.log(e);
-  }
+function clickCanvas(){
+    console.log("Canvas Clicked");
+}
+
+function logMousePosition(e){
+    console.log(e);
+}
 
   function trackMouse(e:MouseEvent){
     console.log("(" + e.offsetX + ", " + e.offsetY + ")");
-    moveGamePiece(e.offsetX, e.offsetY);
+    let myMaze = Maze.getMaze();
+    let center:CanvasPosition = {xCoord: e.offsetX, yCoord: e.offsetY};
+    if(!myMaze.collisionDetector.collisionDetected(center)){
+      moveGamePiece(e.offsetX, e.offsetY);
+    }
   }
 
   function drawRectangle(e){
@@ -743,6 +870,7 @@ function draw() {
   let newX:number;
   
   let myMaze = Maze.getMaze();
+
   //Note:  this sets the fill style to the background color
   let ctx = myMaze.getCanvasContext();
   let gamePiece = myMaze.getGamePiece();
@@ -801,6 +929,7 @@ function draw() {
     return solutionArray;
   }
   
+  /*
   function isMoveValid(currentPosition:MazePosition, proposedMove:MoveDirection, maze:Maze):boolean{
     let isValid = true;
 
@@ -846,4 +975,5 @@ function draw() {
     }
     return isValid;
   }
+  */
 

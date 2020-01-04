@@ -12,13 +12,24 @@ class Maze {
         this.size = [xSize, ySize];
         this.solutionArray = [];
         this.deadEndArray = [];
-        this.overallWidth = this.size[0] * (Maze.cellInterval) + (2 * Maze.borderWidth) - Maze.wallThickness;
-        this.overallHeight = this.size[1] * (Maze.cellInterval) + (2 * Maze.borderWidth) - Maze.wallThickness;
+        this._overallWidth = this.size[0] * (Maze.cellInterval) + (2 * Maze.borderWidth) - Maze.wallThickness;
+        this._overallHeight = this.size[1] * (Maze.cellInterval) + (2 * Maze.borderWidth) - Maze.wallThickness;
+        this._collisionDetector = new CollisionDetector(this);
         Maze.theMaze = this;
     }
+    //****************************************************************
+    //****************************************************************
+    // *****    GETTERS AND SETTERS   *******************************
     static getMaze() {
         return Maze.theMaze;
     }
+    get overallWidth() { return this._overallWidth; }
+    get overallHeight() { return this._overallHeight; }
+    set overallWidth(value) { this._overallWidth = value; }
+    set overallHeight(value) { this._overallHeight = value; }
+    static get borderWidth() { return Maze._borderWidth; }
+    static set borderWidth(value) { Maze._borderWidth = value; }
+    get collisionDetector() { return this._collisionDetector; }
     getSize() {
         return 'Maze size is ' + this.size[0] + ' rows x ' + this.size[1] + ' columns';
     }
@@ -489,7 +500,7 @@ class Maze {
 //Static parameters
 Maze.squareSize = 25;
 Maze.wallThickness = 2;
-Maze.borderWidth = 10;
+Maze._borderWidth = 10;
 Maze.cellInterval = Maze.squareSize + Maze.wallThickness;
 class TestClass {
     constructor(i, d) {
@@ -499,6 +510,103 @@ class TestClass {
         this.direction = d;
     }
 }
+class MazeDisplay {
+}
+class CollisionDetector {
+    constructor(maze) {
+        //Initialize the Barriers for collision detection with all zeros
+        this.barriers = new Array(maze.overallWidth);
+        for (let i = 0; i < this.barriers.length; i++) {
+            this.barriers[i] = new Array(maze.overallHeight).fill(0);
+        }
+        this.setBorderBarrier(maze);
+    }
+    setBorderBarrier(maze) {
+        let debugOn = true;
+        let logTag = 'setBorderBarrier';
+        let startCanvasPosition = { xCoord: 0, yCoord: 0 };
+        let thickness = Maze.borderWidth;
+        let height = maze.overallHeight;
+        let width = maze.overallWidth;
+        let startX, startY;
+        //First draw the vertical walls
+        let leftBorder = { canvasPosition: startCanvasPosition, width: thickness, height: height };
+        let rightBorder = { canvasPosition: { xCoord: width - thickness, yCoord: 0 }, width: thickness, height: height };
+        let topBorder = { canvasPosition: { xCoord: 0, yCoord: 0 }, width: width, height: thickness };
+        let bottomBorder = { canvasPosition: { xCoord: 0, yCoord: height - thickness }, width: width, height: thickness };
+        let borders = [leftBorder, rightBorder, topBorder, bottomBorder];
+        //let borders:Array<RectangleCoord> = [leftBorder, rightBorder];
+        borders.forEach((borderCoordinates) => {
+            this.setRectangularBarrierZone(borderCoordinates, SpaceFlag.WALL);
+        });
+        //if (debugOn) console.log(`${logTag}: After adding borders: ${JSON.stringify(this.barriers)}`);
+        if (debugOn) {
+            for (let x = 0; x < 10; x++)
+                console.log(`${logTag}: After adding borders row ${x}: ${JSON.stringify(this.barriers[x])}`);
+        }
+    }
+    setRectangularBarrierZone(rectangle, spaceFlag) {
+        if (spaceFlag === undefined)
+            spaceFlag = SpaceFlag.WALL;
+        let xPos = rectangle.canvasPosition.xCoord;
+        let xEnd = xPos + rectangle.width;
+        for (xPos; xPos < xEnd; xPos++) {
+            let yStart = rectangle.canvasPosition.yCoord;
+            let yEnd = yStart + rectangle.height;
+            this.barriers[xPos].fill(spaceFlag, yStart, yEnd);
+        }
+    }
+    collisionDetected(center, radius) {
+        let debugOn = true;
+        if (debugOn)
+            console.log(`Barriers are ${JSON.stringify(this.barriers)}`);
+        if (radius === undefined)
+            radius = 5;
+        //Create rectangle where gamepiece resides
+        //Poll the barriers to see if they exist
+        //Report the position closest to the centerpoint
+        let hitBox = { canvasPosition: { xCoord: (center.xCoord - radius), yCoord: (center.yCoord - radius) }, width: radius * 2, height: radius * 2 };
+        if (hitBox.canvasPosition.xCoord < 0)
+            hitBox.canvasPosition.xCoord = 0;
+        if (hitBox.canvasPosition.yCoord < 0)
+            hitBox.canvasPosition.yCoord = 0;
+        if (debugOn)
+            console.log(`Cursor Position (${center.xCoord}, ${center.yCoord})`);
+        if (debugOn)
+            console.log(`Hit Box (${hitBox.canvasPosition.xCoord}, ${hitBox.canvasPosition.yCoord})`);
+        if (debugOn)
+            console.log(JSON.stringify(hitBox));
+        let hitSum = 0;
+        let xPos = hitBox.canvasPosition.xCoord;
+        let xEnd = xPos + hitBox.width;
+        if (xEnd >= this.barriers.length - 1)
+            xEnd = this.barriers.length - 1;
+        for (xPos; xPos <= xEnd; xPos++) {
+            let thisArray = this.barriers[xPos];
+            if (debugOn)
+                console.log(`first array of barriers: ${JSON.stringify(thisArray)}`);
+            let y = hitBox.canvasPosition.yCoord;
+            let yEnd = y + hitBox.height + 1;
+            if (yEnd >= thisArray.length - 1)
+                yEnd = thisArray.length - 1;
+            if (debugOn)
+                console.log(`xPos: ${xPos} and (y, yMax): (${y}, ${yEnd}) and length of barriers: ${this.barriers.length}`);
+            let hitArray = thisArray.slice(y, (yEnd));
+            if (debugOn)
+                console.log(`hit array: ${JSON.stringify(this.barriers[xPos])}`);
+            if (debugOn)
+                console.log(`Length of thisArray: ${thisArray.length}, hitArray: ${JSON.stringify(hitArray)}`);
+            if (debugOn)
+                console.log(`Result for hitArray for xPos: ${xPos} is ${hitArray.indexOf(1)} ${JSON.stringify(hitArray)}`);
+            if (hitArray.indexOf(1) !== -1) {
+                hitSum++;
+            }
+        }
+        if (debugOn)
+            console.log(`hitSum = ${hitSum}`);
+        return (hitSum > 0) ? true : false;
+    }
+}
 var MoveDirection;
 (function (MoveDirection) {
     MoveDirection[MoveDirection["UP"] = 0] = "UP";
@@ -506,6 +614,11 @@ var MoveDirection;
     MoveDirection[MoveDirection["DOWN"] = 2] = "DOWN";
     MoveDirection[MoveDirection["LEFT"] = 3] = "LEFT";
 })(MoveDirection || (MoveDirection = {}));
+var SpaceFlag;
+(function (SpaceFlag) {
+    SpaceFlag[SpaceFlag["FREE"] = 0] = "FREE";
+    SpaceFlag[SpaceFlag["WALL"] = 1] = "WALL";
+})(SpaceFlag || (SpaceFlag = {}));
 // ************************************************************
 // ******   FUNCTIONS       ***********************************
 // ************************************************************
@@ -542,7 +655,11 @@ function logMousePosition(e) {
 }
 function trackMouse(e) {
     console.log("(" + e.offsetX + ", " + e.offsetY + ")");
-    moveGamePiece(e.offsetX, e.offsetY);
+    let myMaze = Maze.getMaze();
+    let center = { xCoord: e.offsetX, yCoord: e.offsetY };
+    if (!myMaze.collisionDetector.collisionDetected(center)) {
+        moveGamePiece(e.offsetX, e.offsetY);
+    }
 }
 function drawRectangle(e) {
     clearMazeCanvas();
@@ -744,46 +861,50 @@ function constructSolutionArray(rows, columns) {
     //console.log('first: %s and last: %s', solutionArray[0][0], solutionArray[lastRow][lastColumn]);
     return solutionArray;
 }
-function isMoveValid(currentPosition, proposedMove, maze) {
-    let isValid = true;
-    //Assign the increment variable for the move
-    let yInc = 0;
-    let xInc = 0;
-    if (proposedMove === MoveDirection.UP)
-        yInc--;
-    else if (proposedMove === MoveDirection.DOWN)
-        yInc++;
-    else if (proposedMove === MoveDirection.RIGHT)
-        xInc++;
-    else if (proposedMove === MoveDirection.LEFT)
-        xInc--;
-    //Set the proposedPosition
-    let proposedPosition = { xPos: currentPosition.xPos + xInc, yPos: currentPosition.yPos + yInc };
-    //Verify position is on the maze grid
-    let isProposedSolutionOnGrid = true;
-    if (proposedPosition.xPos > maze.getXUpperBound() || proposedPosition.xPos < 0)
-        isProposedSolutionOnGrid = false;
-    if (proposedPosition.yPos >= maze.getYUpperBound() || proposedPosition.yPos < 0)
-        isProposedSolutionOnGrid = false;
-    //Verify that the solution doesn't already exist in the solution
-    console.log('About to check if position is already in solution');
-    let isAlreadyInSolution = maze.isPositionInArray(proposedPosition, maze.getSolutionArray());
-    if (!isProposedSolutionOnGrid) {
-        //Move is not on Grid
-        console.log('Warning, Proposed position (%d , %d) is not on grid, Move Rejected!!', proposedPosition.xPos, proposedPosition.yPos);
-        isValid = false;
-        console.log();
-    }
-    else if (isAlreadyInSolution) {
-        console.log('Position already in solution (%d, %d), move rejected!', proposedPosition.xPos, proposedPosition.yPos);
-        isValid = false;
-    }
-    else {
-        //Proposed move is on grid and not already existing in solution
-        console.log('Proposed position (%d , %d) is A GO!!!!', proposedPosition.xPos, proposedPosition.yPos);
-        currentPosition.xPos = proposedPosition.xPos;
-        currentPosition.yPos = proposedPosition.yPos;
-        //console.log('Current position now set to (%d , %d)', currentPosition.xPos, currentPosition.yPos);
-    }
-    return isValid;
+/*
+function isMoveValid(currentPosition:MazePosition, proposedMove:MoveDirection, maze:Maze):boolean{
+  let isValid = true;
+
+  //Assign the increment variable for the move
+  let yInc = 0;
+  let xInc = 0;
+  if (proposedMove === MoveDirection.UP) yInc--;
+  else if (proposedMove === MoveDirection.DOWN) yInc++;
+  else if (proposedMove === MoveDirection.RIGHT) xInc++;
+  else if (proposedMove === MoveDirection.LEFT) xInc--;
+
+  //Set the proposedPosition
+  let proposedPosition:MazePosition = {xPos: currentPosition.xPos + xInc, yPos:currentPosition.yPos + yInc};
+  
+  //Verify position is on the maze grid
+  let isProposedSolutionOnGrid: Boolean = true;
+  if (proposedPosition.xPos > maze.getXUpperBound() || proposedPosition.xPos < 0) isProposedSolutionOnGrid = false;
+  if (proposedPosition.yPos >= maze.getYUpperBound() || proposedPosition.yPos < 0) isProposedSolutionOnGrid = false;
+
+  //Verify that the solution doesn't already exist in the solution
+  console.log('About to check if position is already in solution');
+  let isAlreadyInSolution:boolean = maze.isPositionInArray(proposedPosition, maze.getSolutionArray());
+  
+
+  if (!isProposedSolutionOnGrid) {
+    //Move is not on Grid
+    console.log('Warning, Proposed position (%d , %d) is not on grid, Move Rejected!!', proposedPosition.xPos, proposedPosition.yPos);
+    isValid = false;
+    console.log();
+  } else if(isAlreadyInSolution){
+    console.log('Position already in solution (%d, %d), move rejected!', proposedPosition.xPos, proposedPosition.yPos);
+    isValid = false;
+  
+  } else{
+    //Proposed move is on grid and not already existing in solution
+
+    console.log('Proposed position (%d , %d) is A GO!!!!', proposedPosition.xPos, proposedPosition.yPos);
+    currentPosition.xPos = proposedPosition.xPos;
+    currentPosition.yPos = proposedPosition.yPos;
+    //console.log('Current position now set to (%d , %d)', currentPosition.xPos, currentPosition.yPos);
+    
+
+  }
+  return isValid;
 }
+*/

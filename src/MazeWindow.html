@@ -33,12 +33,13 @@
         >Draw Maze</button></p>
       <p>
       -->
+      
+      <div id="maze-div-no-cursor">
+      <canvas id="mazeCanvas" class="mazeBackground" width="800" height="600"
+      onmousemove="trackMouse(event)" onclick="generateSolution()";>
+      </canvas>
+      </div>
 
-          <canvas id="mazeCanvas" class="mazeBackground" width="800" height="600" 
-          onmousemove="trackMouse(event)" onclick="generateSolution()";>
-          </canvas>
-
-      </p>
 
       <button type="button" onclick="moveGamePiece()">Move </button>
 
