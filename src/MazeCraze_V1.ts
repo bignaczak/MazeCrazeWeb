@@ -412,21 +412,22 @@ class Maze{
   }
 
   public removeWallsForPath(){
+    let debugOn = true;
     //Loop through the cells in the solution set and cover up the green walls with background color
     
     //Setup the maze canvas and set the background color
     let ctx = this.getCanvasContext("mazeCanvas");;
     
     //The final entry in the solution array is outside of the maze so ignore it
-    let lastEntryIndex = (this.solutionArray.length - 1);
-    console.log('Final entry in sollution array is X: %d', this.solutionArray[this.solutionArray.length-1].xPos);
+    let lastEntryIndex = (this.solutionArray.length);
+    if (debugOn) console.log('Final entry in sollution array is X: %d', this.solutionArray[this.solutionArray.length-1].xPos);
     
     for(let i=0; i<lastEntryIndex; i++){
     //for(let i=0; i<5; i++){
       let currentPosition:MazePosition = this.solutionArray[i];
       let top:number, left:number, width:number, height:number;
 
-      if(i==0 || i==lastEntryIndex){
+      if(i==0 || i==lastEntryIndex-1){
         //First, remove the left wall for the start position
         top = Maze.borderWidth + (currentPosition.yPos*Maze.cellInterval);
         
@@ -438,11 +439,14 @@ class Maze{
 
         width = Maze.borderWidth;
         height = Maze.squareSize;
+        let myRect:RectangleCoord = {canvasPosition:{xCoord:left, yCoord: top}, width: width, height: height};
         ctx.fillRect(left, top, width, height);
+        if (debugOn) console.log(`Removing wall ${i} with coord ${JSON.stringify(myRect)}`);
+        this._collisionDetector.setRectangularBarrierZone(myRect, SpaceFlag.FREE);
       }
 
       //Don't process for the last cell in the solution array
-      if(i < lastEntryIndex){
+      if(i < lastEntryIndex-1){
         let nextPosition = this.solutionArray[i+1];
         this.removeWall(currentPosition, nextPosition, ctx);
       }
@@ -460,12 +464,17 @@ class Maze{
     return ctx;
   }
   private removeWall(currentPosition:MazePosition, nextPosition:MazePosition, ctx:CanvasRenderingContext2D):void{
+    let debugOn = false;
     //Stroke a rectangle over the existing gridline to remove the wall
     let dir:MoveDirection = this.getMoveDirection(currentPosition, nextPosition);
-    console.log ('Move is %d or %s', dir, MoveDirection[dir]);
-    console.log('Current Position (%d, %d) --> (%d, %d)', currentPosition.xPos, currentPosition.yPos, nextPosition.xPos, nextPosition.yPos);
+    if (debugOn) console.log ('Move is %d or %s', dir, MoveDirection[dir]);
+    if (debugOn) console.log('Current Position (%d, %d) --> (%d, %d)', currentPosition.xPos, currentPosition.yPos, nextPosition.xPos, nextPosition.yPos);
     let rectCoord:RectangleCoord = this.getRectangle(currentPosition, dir);
     ctx.fillRect(rectCoord.canvasPosition.xCoord, rectCoord.canvasPosition.yCoord, rectCoord.width, rectCoord.height);
+
+    //Now remove the rectangle from the barrier array.
+    this.collisionDetector.setRectangularBarrierZone(rectCoord, SpaceFlag.FREE);
+
   }
 
   private getMoveDirection(currentPosition:MazePosition, nextPosition:MazePosition):MoveDirection{
@@ -547,9 +556,11 @@ class CollisionDetector{
     }
 
     this.setBorderBarrier(maze);
+    this.setGridLineBarriers(maze);
   }
 
-  private setBorderBarrier(maze:Maze){
+  private setBorderBarrier(maze?:Maze){
+    if (maze===undefined) maze = Maze.getMaze();
     let debugOn = true;
     let logTag = 'setBorderBarrier';
     let startCanvasPosition:CanvasPosition = {xCoord:0, yCoord:0};
@@ -578,27 +589,118 @@ class CollisionDetector{
     }
   }
 
-  private setRectangularBarrierZone(rectangle:RectangleCoord, spaceFlag?:SpaceFlag){
+  private setGridLineBarriers(maze?:Maze){
+    if (maze===undefined) maze = Maze.getMaze();
+    let x:number, y:number, height:number, width:number;
+    let myRect:RectangleCoord = {canvasPosition:{xCoord:0, yCoord:0}, width:0, height:0};
+    let numHorGridLines = maze.getYUpperBound()-1;
+    let numVertGridLines = maze.getXUpperBound()-1;
+    //first do vertical grid lines
+    for (let i=0; i<numVertGridLines;i++){
+      x=(Maze.borderWidth + Maze.squareSize) + (i * Maze.cellInterval);
+      width = Maze.wallThickness;
+      y=Maze.borderWidth;
+      height = maze.overallHeight - (2*Maze.borderWidth);
+      myRect = {canvasPosition:{xCoord:x, yCoord:y}, width:width, height: height};
+      this.setRectangularBarrierZone(myRect, SpaceFlag.WALL);
+      //this.setRectangularBarrierZone({canvasPosition:{xCoord:x, yCoord:y}, width:width, height: height}, SpaceFlag.WALL);
+    }
+
+    //next do horizontal grid lines
+    for (let i=0; i<numHorGridLines;i++){
+      x=(Maze.borderWidth);
+      width = maze.overallWidth - (2*Maze.borderWidth);
+      y=(Maze.borderWidth + Maze.squareSize) + (i * Maze.cellInterval);
+      height = Maze.wallThickness;
+      myRect = {canvasPosition:{xCoord:x, yCoord:y}, width:width, height: height};
+      this.setRectangularBarrierZone(myRect, SpaceFlag.WALL);
+    }
+
+  }
+    
+
+  public setRectangularBarrierZone(rectangle:RectangleCoord, spaceFlag?:SpaceFlag){
+    let debugOn = true;
     if(spaceFlag===undefined) spaceFlag = SpaceFlag.WALL;
+
     let xPos = rectangle.canvasPosition.xCoord
     let xEnd = xPos + rectangle.width;
     for (xPos; xPos<xEnd; xPos++){
       let yStart = rectangle.canvasPosition.yCoord;
       let yEnd = yStart + rectangle.height;
+      if(debugOn && xPos==rectangle.canvasPosition.xCoord) console.log(`setRectangularBarrierZone: (${xPos}, ${yStart} --> ${yEnd})`);
       this.barriers[xPos].fill(spaceFlag, yStart, yEnd);
     }
   }
 
-  public collisionDetected(center:CanvasPosition, radius?:number):boolean{
+  public checkCollisionsAlongPath(currentPosition:CanvasPosition, desiredPosition:CanvasPosition, radius?:number):CanvasPosition{
+    // create an array of the path 
+    // check for collisions at each position along path
+    // return the value of either
+    //   a) the first contact point
+    //   b) the desiredPosition (if no collision)
     let debugOn = true;
-    if (debugOn) console.log(`Barriers are ${JSON.stringify(this.barriers)}`);
+    if (debugOn) console.log(`Checking path from start: (${currentPosition.xCoord}, ${currentPosition.yCoord})-->End: (${desiredPosition.xCoord}, ${desiredPosition.yCoord})`);
+    let nextClearPoint:CanvasPosition;
+    let path:Array<CanvasPosition> = this.getPathArray(currentPosition, desiredPosition);
+    for(let i=0; i<path.length;i++){
+      if (this.collisionDetected(path[i])){
+        if (debugOn) console.log(`Collision on path at (${path[i].xCoord}, ${path[i].yCoord})`);
+        break;
+      }
+      nextClearPoint = path[i];
+    }
+    if (debugOn) console.log(`Returing path point (${nextClearPoint.xCoord}, ${nextClearPoint.yCoord})`)
+    return nextClearPoint;
+  }
+
+  private getPathArray(startPosition:CanvasPosition, endPosition:CanvasPosition):Array<CanvasPosition>{
+    /**
+     * This takes in a start and end point and returns a path array incrementing by 1 pixel
+     */
+    
+    let debugOn = true;
+    let path:Array<CanvasPosition> = [];
+    let xInc:number, yInc:number;
+    let run = endPosition.xCoord - startPosition.xCoord;
+    let rise = endPosition.yCoord - startPosition.yCoord;
+    let slope = (run !== 0) ? rise/run : 0;
+    //Now increment for each pixel in the dominant direction and calc the second
+    if (Math.abs(run)>Math.abs(rise)){
+      xInc = 1 * Math.sign(run);
+      yInc = slope* Math.sign(run);
+    } else{
+      yInc = 1 * Math.sign(rise);
+      xInc = (slope!==0) ? (1/slope * Math.sign(rise)) : 0;
+    }
+    let curPos:CanvasPosition = {xCoord:startPosition.xCoord, yCoord:startPosition.yCoord}
+    let atEndPos = false;
+    let loopCount = 0;
+    while (!atEndPos && loopCount < 50) {
+      path.push({xCoord:Math.floor(curPos.xCoord), yCoord:Math.floor(curPos.yCoord)});
+      curPos.xCoord = curPos.xCoord + xInc;
+      curPos.yCoord = curPos.yCoord + yInc;
+      //if (Math.floor(curPos.xCoord) == Math.floor(endPosition.xCoord) && Math.floor(curPos.yCoord) == Math.floor(endPosition.yCoord)) atEndPos = true;
+      if (Math.round(curPos.xCoord) == Math.round(endPosition.xCoord) && Math.round(curPos.yCoord) == Math.round(endPosition.yCoord)) atEndPos = true;
+      loopCount++;
+      if(debugOn) console.log(`Defining Path, Current Position: (${Math.round(curPos.xCoord)}, ${Math.round(curPos.yCoord)})`);
+    }
+
+    return path;
+  }
+
+
+  public collisionDetected(center:CanvasPosition, radius?:number):boolean{
+    let debugOn = false;
+    //if (debugOn) console.log(`Barriers are ${JSON.stringify(this.barriers)}`);
     if(radius === undefined) radius=5;
     
     //Create rectangle where gamepiece resides
     //Poll the barriers to see if they exist
     //Report the position closest to the centerpoint
     
-    let hitBox:RectangleCoord = {canvasPosition:{xCoord: (center.xCoord-radius), yCoord: (center.yCoord- radius)}, width:radius*2, height:radius*2};
+    let contactBuffer = 1;
+    let hitBox:RectangleCoord = {canvasPosition:{xCoord: (center.xCoord-(radius+contactBuffer)), yCoord: (center.yCoord- (radius+contactBuffer))}, width:(radius+contactBuffer)*2, height:(radius+contactBuffer)*2};
     if (hitBox.canvasPosition.xCoord < 0) hitBox.canvasPosition.xCoord = 0;
     if (hitBox.canvasPosition.yCoord < 0) hitBox.canvasPosition.yCoord = 0;
     if (debugOn) console.log(`Cursor Position (${center.xCoord}, ${center.yCoord})`);
@@ -691,12 +793,17 @@ function logMousePosition(e){
 }
 
   function trackMouse(e:MouseEvent){
-    console.log("(" + e.offsetX + ", " + e.offsetY + ")");
+    let debugOn = true;
+    if (debugOn) console.log("(" + e.offsetX + ", " + e.offsetY + ")");
     let myMaze = Maze.getMaze();
-    let center:CanvasPosition = {xCoord: e.offsetX, yCoord: e.offsetY};
-    if(!myMaze.collisionDetector.collisionDetected(center)){
+    let mousePosition:CanvasPosition = {xCoord: e.offsetX, yCoord: e.offsetY};
+    let currentGamePiecePos:CanvasPosition = myMaze.getGamePiecePosition();
+    let nextCollisionPoint:CanvasPosition = myMaze.collisionDetector.checkCollisionsAlongPath(currentGamePiecePos, mousePosition);
+    if (debugOn) console.log(`Next collision point: (${nextCollisionPoint.xCoord}, ${nextCollisionPoint.yCoord})`);
+    /*if(!myMaze.collisionDetector.collisionDetected(mousePosition)){
       moveGamePiece(e.offsetX, e.offsetY);
-    }
+    }*/
+    moveGamePiece(nextCollisionPoint.xCoord, nextCollisionPoint.yCoord);
   }
 
   function drawRectangle(e){
@@ -791,14 +898,14 @@ function logMousePosition(e){
 
         initialY = borderWidth + squareSize + wallThickness/2;
         incrementY = squareSize + wallThickness;
-     } else{
+      } else{
         initialX = borderWidth + squareSize +wallThickness/2;
         incrementX = squareSize + wallThickness;
 
         initialY = borderWidth;
         endY = mazeCanvas.height - borderWidth; //constant length
         incrementY = 0;
-     }
+      }
 
      for(let i=0; i<numLines; i++){
        if (debugOn) console.log(logTag + ": in for loop " + i);
@@ -816,10 +923,11 @@ function logMousePosition(e){
        ctx.moveTo(startX, startY);
        ctx.lineTo(endX, endY);
        ctx.stroke();
-     }
+      }
+
 
      if (debugOn) console.log(logTag + ": Outside for loop");
- }
+  }
 
  function generateSolution(gridSize?:GridSize){
   initMaze();
